@@ -19,7 +19,29 @@ func (s *userService) RegisterUser(name, email, password string) (domain.User, e
 		Email:    email,
 		HashedPassword: password,
 	}
-	return s.repo.Create(user)
+	user, err := s.repo.Create(user); 
+	if err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
+func (s *userService) UpdateUser(id uint, name, email, password string) (domain.User, error) {
+	user := domain.User{
+		ID:             id,
+		Name:           name,
+		Email:          email,
+		HashedPassword: password,
+	}
+	user, err := s.repo.Update(user)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
+func (s *userService) DeleteUser(id uint) error {
+	return s.repo.Delete(id)
 }
 
 func (s *userService) GetUserByID(id uint) (domain.User, error) {

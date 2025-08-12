@@ -3,9 +3,9 @@ package handler
 import (
 	"WEB1/internal/app/service"
 	"net/http"
-	"encoding/json"
-	"github.com/gorilla/mux"
 	"strconv"
+	"WEB1/internal/dto"
+	"github.com/gin-gonic/gin"
 )
 
 type reviewHandler struct {
@@ -16,46 +16,75 @@ func NewReviewHandler(service service.ReviewService) *reviewHandler {
 	return &reviewHandler{service: service}
 }
 
-func (h *reviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		MovieID uint    `json:"movie_id"`
-		UserID  uint    `json:"user_id"`
-		Rating  float64 `json:"rating"`
-		Comment string  `json:"comment"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+func (h *reviewHandler) CreateReview(c *gin.Context) {
+	var req dto.CreateReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	review, err := h.service.AddReview(req.MovieID, req.UserID, req.Rating, req.Comment)
+	resp, err := h.service.AddReview(req.MovieID, req.UserID, req.Rating, req.Comment)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(review)
+	c.JSON(http.StatusCreated, resp)
 }
 
-func (h *reviewHandler) GetReviewByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
+func (h *reviewHandler) UpdateReview(c *gin.Context) {
+	idStr := c.Param("id")  // اینجا
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid review ID"})
 		return
 	}
-	review, err := h.service.GetReviewByID(uint(id))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+	var req dto.UpdateReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(review)
+	resp, err := h.service.UpdateReview(uint(id), req.Rating, req.Comment)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *reviewHandler) ListReviews(w http.ResponseWriter, r *http.Request) {
+func (h *reviewHandler) DeleteReview(c *gin.Context) {
+	idStr := c.Param("id")  // اینجا
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid review ID"})
+		return
+	}
+	if err := h.service.DeleteReview(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusNoContent, nil)
+}
+
+func (h *reviewHandler) GetReviewByID(c *gin.Context) {	
+	idStr := c.Param("id") 
+	id, err := strconv.Atoi(idStr)	
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid review ID"})
+		return
+	}
+	resp, err := h.service.GetReviewByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Review not found"})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *reviewHandler) ListReviews(c *gin.Context) {
 	reviews, err := h.service.ListReviews()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(reviews)
+	c.JSON(http.StatusOK, reviews)
 }

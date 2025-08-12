@@ -8,7 +8,6 @@ import (
 )
 
 type MovieModel struct {
-	ID          int       `gorm:"primaryKey"`
 	Title       string
 	Description string
 	Genres      string    // comma-separated
@@ -16,63 +15,78 @@ type MovieModel struct {
 	gorm.Model
 }
 
-
-
 type movieRepository struct {
 	db *gorm.DB
 }
 
-func NewMovieRepository(db *gorm.DB) MovieRepository {
+func NewMovieRepository(db *gorm.DB) *movieRepository {
 	return &movieRepository{db: db}
 }
 
-func (r *movieRepository) Create(m domain.Movie) (domain.Movie, error) {
-	model := MovieModel{
-		Title:       m.Title,
-		Description: m.Description,
-		Genres:      strings.Join(m.Genres, ","),
-		ReleaseDate: m.ReleaseDate,
-	}
-	if err := r.db.Create(&model).Error; err != nil {
-		return domain.Movie{}, err
-	}
-	return domain.Movie{
-		ID:          model.ID,
-		Title:       model.Title,
-		Description: model.Description,
-		Genres:      strings.Split(model.Genres, ","),
-		ReleaseDate: model.ReleaseDate,
-	}, nil
+// Helper to convert domain.Movie to MovieModel
+func toMovieModel(d domain.Movie) MovieModel {
+    genresString := strings.Join(d.Genres, ",")
+    return MovieModel{
+        Title:       d.Title,
+        Description: d.Description,
+        Genres:      genresString,
+        ReleaseDate: d.ReleaseDate,
+    }
 }
 
-func (r *movieRepository) GetByID(id int)(domain.Movie, error) {
-	var model MovieModel
-	if err := r.db.First(&model, id).Error; err != nil {
-		return domain.Movie{}, err
-	}
-	return domain.Movie{
-		ID:          model.ID,
-		Title:       model.Title,
-		Description: model.Description,
-		Genres:      strings.Split(model.Genres, ","),
-		ReleaseDate: model.ReleaseDate,
-	}, nil
+// Helper to convert MovieModel to domain.Movie
+func toDomainMovie(m MovieModel) domain.Movie {
+    genresSlice := strings.Split(m.Genres, ",")
+    return domain.Movie{
+        ID:          m.ID,
+        Title:       m.Title,
+        Description: m.Description,
+        Genres:      genresSlice,
+        ReleaseDate: m.ReleaseDate,
+    }
+}
+
+
+func (r *movieRepository) Create(m domain.Movie) (domain.Movie, error) {
+    model := toMovieModel(m)
+    result := r.db.Create(&model)
+    if result.Error != nil {
+        return domain.Movie{}, result.Error
+    }
+    return toDomainMovie(model), nil
+}
+
+func (r *movieRepository) Update(m domain.Movie) (domain.Movie, error) {
+    model := toMovieModel(m)
+    result := r.db.Model(&model).Where("id = ?", model.ID).Updates(model)
+    if result.Error != nil {
+        return domain.Movie{}, result.Error
+    }
+    return toDomainMovie(model), nil
+}
+
+func (r *movieRepository) Delete(id uint) error {
+    result := r.db.Delete(&MovieModel{}, id)
+    return result.Error
+}
+
+func (r *movieRepository) GetByID(id uint) (domain.Movie, error) {
+    var model MovieModel
+    if err := r.db.First(&model, id).Error; err != nil {
+        return domain.Movie{}, err
+    }
+    return toDomainMovie(model), nil
 }
 
 func (r *movieRepository) List() ([]domain.Movie, error) {
-	var models []MovieModel
-	if err := r.db.Find(&models).Error; err != nil {
-		return nil, err
-	}
-	var result []domain.Movie
-	for _, m := range models {
-		result = append(result, domain.Movie{
-			ID:          m.ID,
-			Title:       m.Title,
-			Description: m.Description,
-			Genres:      strings.Split(m.Genres, ","),
-			ReleaseDate: m.ReleaseDate,
-		})
-	}
-	return result, nil
+    var models []MovieModel
+    if err := r.db.Find(&models).Error; err != nil {
+        return nil, err
+    }
+
+    var movies []domain.Movie
+    for _, model := range models {
+        movies = append(movies, toDomainMovie(model))
+    }
+    return movies, nil
 }

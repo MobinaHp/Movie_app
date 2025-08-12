@@ -1,37 +1,72 @@
 package service
 
 import (
-	"time"
 	"WEB1/internal/domain"
 	"WEB1/internal/app/repository"
+	"fmt"
+	"time"
 )
 
 type movieService struct {
 	repo repository.MovieRepository
 }
 
-func NewMovieService(r repository.MovieRepository) MovieService {
-	return &movieService{repo: r}
+func NewMovieService(repo repository.MovieRepository) MovieService {
+	return &movieService{repo: repo}
 }
 
 func (s *movieService) AddMovie(title, desc string, genres []string, release string) (domain.Movie, error) {
-	date, err := time.Parse("2006-01-02", release)
+	releaseDate, err := time.Parse("2006", release)
 	if err != nil {
-		return domain.Movie{}, err
+		return domain.Movie{}, fmt.Errorf("invalid release date format: %w", err)
 	}
-	m := domain.Movie{
+
+	movie := domain.Movie{
 		Title:       title,
 		Description: desc,
 		Genres:      genres,
-		ReleaseDate: date,
+		ReleaseDate: releaseDate,
 	}
-	return s.repo.Create(m)
+
+	movie, err = s.repo.Create(movie)
+	if err != nil {
+		return domain.Movie{}, err
+	}
+	return movie, nil
 }
 
-func (s *movieService) GetMovieByID(id int) (domain.Movie, error) {
+// UpdateMovie updates an existing movie.
+func (s *movieService) UpdateMovie(id uint, title, desc string, genres []string, release string) (domain.Movie, error) {
+	releaseDate, err := time.Parse("2006", release)
+	if err != nil {
+		return domain.Movie{}, fmt.Errorf("invalid release date format: %w", err)
+	}
+
+	movie := domain.Movie{
+		ID:          id,
+		Title:       title,
+		Description: desc,
+		Genres:      genres,
+		ReleaseDate: releaseDate,
+	}
+	movie, err = s.repo.Update(movie)
+	if err != nil {
+		return domain.Movie{}, err
+	}
+	return movie, nil
+}
+
+// DeleteMovie deletes a movie by ID.
+func (s *movieService) DeleteMovie(id uint) error {
+	return s.repo.Delete(id)
+}
+
+// GetMovieByID retrieves a movie by ID.
+func (s *movieService) GetMovieByID(id uint) (domain.Movie, error) {
 	return s.repo.GetByID(id)
 }
 
+// ListMovies retrieves all movies.
 func (s *movieService) ListMovies() ([]domain.Movie, error) {
 	return s.repo.List()
 }

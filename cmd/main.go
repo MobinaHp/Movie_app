@@ -4,13 +4,12 @@ import (
 	"WEB1/internal/app/handler"
 	"WEB1/internal/app/repository"
 	"WEB1/internal/app/service"
+	"WEB1/internal/app"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
-
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -21,8 +20,14 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Tehran",
-		os.Getenv("DB_HOST"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"), os.Getenv("DB_PORT"))
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Tehran",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"),
+		os.Getenv("DB_PORT"),
+	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -30,43 +35,38 @@ func main() {
 	}
 	log.Println("Successfully connected to the database!")
 
-	if err := db.AutoMigrate(&repository.MovieModel{}, &repository.UserModel{}, &repository.ReviewModel{}); err != nil {
+	if err := db.AutoMigrate(
+		&repository.MovieModel{},
+		&repository.UserModel{},
+		&repository.ReviewModel{},
+	); err != nil {
 		log.Fatalf("Failed to auto-migrate schema: %v", err)
 	}
 
-	//Movie
+	//repositories
 	movieRepo := repository.NewMovieRepository(db)
-	movieService := service.NewMovieService(movieRepo)
-	movieHandler := handler.NewMovieHandler(movieService)
-
-	//User
 	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo)
-	userHandler := handler.NewUserHandler(userService)
-
-	//Review
 	reviewRepo := repository.NewReviewRepository(db)
-	reviewService := service.NewReviewService(reviewRepo)
+
+	//services
+	movieService := service.NewMovieService(movieRepo)
+	userService := service.NewUserService(userRepo)
+	reviewService := service.NewReviewService(reviewRepo, movieRepo, userRepo)
+
+	//handlers
+	movieHandler := handler.NewMovieHandler(movieService)
+	userHandler := handler.NewUserHandler(userService)
 	reviewHandler := handler.NewReviewHandler(reviewService)
 
-	router := mux.NewRouter()
+	// Create router
+	router := gin.Default()
 
-	//Movie
-	router.HandleFunc("/movies", movieHandler.CreateMovie).Methods("POST")
-	router.HandleFunc("/movies", movieHandler.ListMovies).Methods("GET")
-	router.HandleFunc("/movies/{id}", movieHandler.GetMovieByID).Methods("GET")
+	// Setup routes
+	app.SetupRoutes(router, movieHandler, userHandler, reviewHandler)
 
-	//User
-	router.HandleFunc("/users", userHandler.CreateUser).Methods("POST")
-	router.HandleFunc("/users", userHandler.ListUsers).Methods("GET")
-	router.HandleFunc("/users/{id}", userHandler.GetUserByID).Methods("GET")
-
-	//Review
-	router.HandleFunc("/reviews", reviewHandler.CreateReview).Methods("POST")
-	router.HandleFunc("/reviews", reviewHandler.ListReviews).Methods("GET")
-	router.HandleFunc("/reviews/{id}", reviewHandler.GetReviewByID).Methods("GET")
-	
-
+	// Start server
 	log.Println("Server starting on port 8080...")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	if err := router.Run(":8080"); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }

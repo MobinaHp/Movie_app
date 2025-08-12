@@ -1,13 +1,13 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
-	"github.com/gorilla/mux"
 	"WEB1/internal/app/service"
+	"WEB1/internal/dto"
+	"WEB1/internal/domain"
+	"github.com/gin-gonic/gin"
 )
-
 
 type movieHandler struct {
 	service service.MovieService
@@ -17,79 +17,90 @@ func NewMovieHandler(s service.MovieService) MovieHandler {
 	return &movieHandler{service: s}
 }
 
-type createMovieRequest struct {
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Genres      []string `json:"genres"`
-	ReleaseDate string   `json:"release_date"`
+func toMovieResponse(d domain.Movie) dto.MovieResponse {
+	return dto.MovieResponse{
+		ID:          d.ID,
+		Title:       d.Title,
+		Description: d.Description,
+		Genres:      d.Genres,
+		ReleaseDate: d.ReleaseDate.Format("2006-01-02"),
+	}
 }
 
-type movieResponse struct {
-	ID          int      `json:"id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Genres      []string `json:"genres"`
-	ReleaseDate string   `json:"release_date"`
-}
-
-func (h *movieHandler) CreateMovie(w http.ResponseWriter, r *http.Request) {
-	var req createMovieRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+func (h *movieHandler) CreateMovie(c *gin.Context) {
+	var req dto.CreateMovieRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	movie, err := h.service.AddMovie(req.Title, req.Description, req.Genres, req.ReleaseDate)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	resp := movieResponse{
-		ID:          movie.ID,
-		Title:       movie.Title,
-		Description: movie.Description,
-		Genres:      movie.Genres,
-		ReleaseDate: movie.ReleaseDate.Format("2006-01-02"),
-	}
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusCreated, toMovieResponse(movie))
 }
 
-func (h *movieHandler) GetMovieByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
+func (h *movieHandler) UpdateMovie(c *gin.Context) {
+	idStr := c.Param("id") 
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid movie ID"})
 		return
 	}
-	movie, err := h.service.GetMovieByID(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+	var req dto.CreateMovieRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	resp := movieResponse{
-		ID:          movie.ID,
-		Title:       movie.Title,
-		Description: movie.Description,
-		Genres:      movie.Genres,
-		ReleaseDate: movie.ReleaseDate.Format("2006-01-02"),
+
+	movie, err := h.service.UpdateMovie(uint(id), req.Title, req.Description, req.Genres, req.ReleaseDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, toMovieResponse(movie))
 }
 
-func (h *movieHandler) ListMovies(w http.ResponseWriter, r *http.Request) {
+func (h *movieHandler) DeleteMovie(c *gin.Context) {
+	idStr := c.Param("id")  // اینجا
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid movie ID"})
+		return
+	}
+	if err := h.service.DeleteMovie(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusNoContent, nil) 
+}
+
+func (h *movieHandler) GetMovieByID(c *gin.Context) {
+	idStr := c.Param("id")  // اینجا
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid movie ID"})
+		return
+	}
+	movie, err := h.service.GetMovieByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Movie not found"})
+		return
+	}
+	c.JSON(http.StatusOK, toMovieResponse(movie))
+}
+
+func (h *movieHandler) ListMovies(c *gin.Context) {
 	movies, err := h.service.ListMovies()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	var resp []movieResponse
+	var responses []dto.MovieResponse
 	for _, m := range movies {
-		resp = append(resp, movieResponse{
-			ID:          m.ID,
-			Title:       m.Title,
-			Description: m.Description,
-			Genres:      m.Genres,
-			ReleaseDate: m.ReleaseDate.Format("2006-01-02"),
-		})
+		responses = append(responses, toMovieResponse(m))
 	}
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, responses)
 }

@@ -1,21 +1,29 @@
 package handler
 
-import "net/http"
+import (
+	"github.com/gin-gonic/gin"
+)
 
 type MovieHandler interface {
-	CreateMovie(w http.ResponseWriter, r *http.Request)
-	GetMovieByID(w http.ResponseWriter, r *http.Request)
-	ListMovies(w http.ResponseWriter, r *http.Request)
+	CreateMovie(c *gin.Context)
+	UpdateMovie(c *gin.Context)
+	DeleteMovie(c *gin.Context)
+	GetMovieByID(c *gin.Context)
+	ListMovies(c *gin.Context)
 }
 
 type UserHandler interface {
-	CreateUser(w http.ResponseWriter, r *http.Request)
-	GetUserByID(w http.ResponseWriter, r *http.Request)
-	ListUsers(w http.ResponseWriter, r *http.Request)
+	CreateUser(c *gin.Context)
+	UpdateUser(c *gin.Context)
+	DeleteUser(c *gin.Context)
+	GetUserByID(c *gin.Context)
+	ListUsers(c *gin.Context)
 }
 
 type ReviewHandler interface {
-	CreateReview(w http.ResponseWriter, r *http.Request)
-	GetReviewByID(w http.ResponseWriter, r *http.Request)
-	ListReviews(w http.ResponseWriter, r *http.Request)
+	CreateReview(c *gin.Context)
+	UpdateReview(c *gin.Context)
+	DeleteReview(c *gin.Context)
+	GetReviewByID(c *gin.Context)
+	ListReviews(c *gin.Context)
 }

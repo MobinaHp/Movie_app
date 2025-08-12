@@ -3,7 +3,7 @@ package domain
 import "time"
 
 type Movie struct {
-	ID          int
+	ID          uint
 	Title       string
 	Description string
 	Genres      []string

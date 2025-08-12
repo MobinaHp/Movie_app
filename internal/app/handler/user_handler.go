@@ -1,11 +1,12 @@
 package handler
 
 import (
-	"encoding/json"
+	"WEB1/internal/app/service"
+	"WEB1/internal/dto"
 	"net/http"
 	"strconv"
-	"github.com/gorilla/mux"
-	"WEB1/internal/app/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type userHandler struct {
@@ -16,74 +17,105 @@ func NewUserHandler(s service.UserService) UserHandler {
 	return &userHandler{service: s}
 }
 
-type CreateUserRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
 
-type UserResponse struct {
-	ID       uint   `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-func (h *userHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	var req CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+func (h *userHandler) CreateUser(c *gin.Context) {
+	var req dto.CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	user, err := h.service.RegisterUser(req.Name, req.Email, req.Password)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	resp := UserResponse{
+	resp := dto.UserResponse{
 		ID:       user.ID,
 		Name:     user.Name,
 		Email:    user.Email,
 		Password: user.HashedPassword,
 	}
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusCreated, resp)
 }
 
-func (h *userHandler) GetUserByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
+
+//UpdateUser
+func (h *userHandler) UpdateUser(c *gin.Context) {
+	var req dto.UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	idStr := c.Param("id")  
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := h.service.UpdateUser(uint(id), req.Name, req.Email, req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	resp := dto.UserResponse{
+		ID:       user.ID,
+		Name:     user.Name,
+		Email:    user.Email,
+		Password: user.HashedPassword,
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+//DeleteUser
+func (h *userHandler) DeleteUser(c *gin.Context) {
+	idStr := c.Param("id") 
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.service.DeleteUser(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *userHandler) GetUserByID(c *gin.Context) {
+	idStr := c.Param("id")  
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	user, err := h.service.GetUserByID(uint(id))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	resp := UserResponse{
+	resp := dto.UserResponse{
 		ID:       user.ID,
 		Name:     user.Name,
 		Email:    user.Email,
 		Password: user.HashedPassword,
 	}
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *userHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+func (h *userHandler) ListUsers(c *gin.Context) {
 	users, err := h.service.ListUsers()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	var resp []UserResponse
+	var resp []dto.UserResponse
 	for _, u := range users {
-		resp = append(resp, UserResponse{
+		resp = append(resp, dto.UserResponse{
 			ID:       u.ID,
 			Name:     u.Name,
 			Email:    u.Email,
 			Password: u.HashedPassword,
 		})
 	}
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
